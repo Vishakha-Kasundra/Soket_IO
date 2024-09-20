@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            height: 100vh;
+            background-color: #eaeaea;
+            padding: 20px;
+        }
+
+        #userName {
+            margin: 10px 0;
+            padding: 10px;
+            width: 300px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            transition: border-color 0.3s;
+        }
+
+        #userName:focus {
+            border-color: #007bff;
+        }
+
+        #subjectDropdown {
+            margin: 10px 0;
+            padding: 10px;
+            width: 300px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            background-color: #fff;
+            transition: border-color 0.3s;
+        }
+
+        #subjectDropdown:focus {
+            border-color: #007bff;
+        }
+
+        #chatBox {
+            display: none;
+            width: 100%;
+            max-width: 600px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            height: 60vh;
+        }
+
+        #message {
+            list-style: none;
+            padding: 20px;
+            margin: 0;
+            overflow-y: auto;
+            flex-grow: 1;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .message-item {
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 20px;
+            max-width: 70%;
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .sent {
+            align-self: flex-end;
+            background-color: #dcf8c6;
+            margin-left: auto;
+        }
+
+        .received {
+            align-self: flex-start;
+            background-color: #f1f1f1;
+            margin-right: auto;
+        }
+
+        #input {
+            border: none;
+            padding: 10px;
+            border-top: 1px solid #ccc;
+            outline: none;
+            width: calc(100% - 20px);
+            box-sizing: border-box;
+            border-radius: 0 0 10px 0;
+            transition: border-color 0.3s;
+        }
+
+        #input:focus {
+            border-color: #007bff;
+        }
+
+        #input::placeholder {
+            color: #aaa;
+        }
+
+        #sendButton {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        #sendButton:hover {
+            background-color: #0056b3;
+        }
+
+        #sendButton i {
+            margin-right: 5px; /* Space between icon and text */
+        }
+    </style>
+</head>
+
+<body>
+    <input id="userName" placeholder="Enter your name..." autocomplete="off" />
+    <select id="subjectDropdown">
+        <option value="">Select a Subject</option>
+        <option value="NodeJs">NodeJs</option>
+        <option value="Android">Android</option>
+        <option value="ASP.net">ASP.net</option>
+        <option value="ML">ML</option>
+        <option value="OS">OS</option>
+    </select>
+    <div id="chatBox">
+        <ul id="message"></ul>
+        <div style="display: flex; align-items: center;">
+            <input id="input" autocomplete="off" placeholder="Type a Message..." />
+            <button id="sendButton"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const userNameInput = document.getElementById("userName");
+        const input = document.getElementById("input");
+        const messageList = document.getElementById("message");
+        const chatBox = document.getElementById("chatBox");
+        const subjectDropdown = document.getElementById("subjectDropdown");
+        const sendButton = document.getElementById("sendButton");
+
+        // Store sent messages to prevent duplicates
+        const sentMessages = new Set();
+        let currentUser = ""; // To track the current user
+
+        // Show chat box when a subject is selected
+        subjectDropdown.addEventListener('change', function () {
+            if (this.value && userNameInput.value) {
+                chatBox.style.display = 'flex';
+                messageList.innerHTML = ''; // Clear messages when changing subject
+                currentUser = userNameInput.value; // Store current user
+            } else {
+                chatBox.style.display = 'none';
+                messageList.innerHTML = ''; // Clear messages when hiding chat
+            }
+        });
+
+        function sendMessage() {
+            if (input.value.trim()) { // Check if input is not empty
+                const subject = subjectDropdown.value;
+                const userName = userNameInput.value || "Anonymous"; // Default to "Anonymous"
+                const message = `${userName} (${subject}): ${input.value.trim()}`;
+
+                // Emit message and add to chat
+                socket.emit('message', message);
+                addMessageToChat(message, 'sent');
+                sentMessages.add(message); // Track sent messages to avoid duplicates
+                input.value = ''; // Clear input after sending
+            } else {
+                alert("Please enter a message."); // Alert if input is empty
+            }
+        }
+
+        input.addEventListener('keypress', function (event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        sendButton.addEventListener('click', sendMessage);
+
+        socket.on('message', function (msg) {
+            const subject = subjectDropdown.value;
+            const userName = msg.split(' ')[0]; // Extract the username from the message
+
+            if (msg.includes(`(${subject})`) && !sentMessages.has(msg)) {
+                const messageType = (userName === currentUser) ? 'sent' : 'received'; // Determine the message type
+                addMessageToChat(msg, messageType);
+                sentMessages.add(msg); // Track received messages to avoid duplicates
+            }
+        });
+
+        function addMessageToChat(msg, type) {
+            const item = document.createElement('li');
+            item.textContent = msg;
+            item.className = `message-item ${type}`;
+            messageList.appendChild(item);
+            messageList.scrollTop = messageList.scrollHeight; // Auto-scroll to the bottom
+        }
+
+        userNameInput.addEventListener('input', function () {
+            if (subjectDropdown.value) {
+                chatBox.style.display = 'flex';
+            }
+        });
+    </script>
+</body>
+
+</html>
